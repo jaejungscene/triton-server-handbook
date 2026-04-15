@@ -1,0 +1,16 @@
+apiVersion: v2
+name: triton
+description: NVIDIA Triton Inference Server — Production-Ready Helm Chart
+type: application
+version: 0.1.0
+appVersion: "24.08"
+
+keywords:
+  - triton
+  - inference
+  - mlops
+  - nvidia
+  - gpu
+
+maintainers:
+  - name: hifac

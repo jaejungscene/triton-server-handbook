@@ -1,0 +1,48 @@
+# Tabular — Anomaly Detector (FIL Backend for XGBoost/LightGBM)
+
+name: "anomaly_detector"
+backend: "fil"
+max_batch_size: 8192
+
+input [
+  { name: "input__0" data_type: TYPE_FP32 dims: [50] }
+]
+
+output [
+  { name: "output__0" data_type: TYPE_FP32 dims: [2] }
+]
+
+dynamic_batching {
+  preferred_batch_size: [1024, 4096]
+  max_queue_delay_microseconds: 50
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [0]
+    rate_limiter {
+      resources [{ name: "gpu_slot" count: 1 }]
+      priority: 2
+    }
+  }
+]
+
+parameters {
+  key: "model_type"
+  value: { string_value: "xgboost_json" }
+}
+
+parameters {
+  key: "output_class"
+  value: { string_value: "true" }
+}
+
+parameters {
+  key: "threshold"
+  value: { string_value: "0.5" }
+}
+
+version_policy: { latest: { num_versions: 1 } }
+response_cache { enable: true }

@@ -1,0 +1,98 @@
+# =============================================================================
+# CD Production — 수동 승인 후 Production 배포
+# =============================================================================
+# Trigger: 수동 (workflow_dispatch)
+# 보호: GitHub Environment protection rules (수동 승인 필수)
+# =============================================================================
+
+name: CD - Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (commit SHA or "latest")'
+        required: true
+        default: 'latest'
+      rollback:
+        description: 'Rollback to previous version'
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production  # ★ 수동 승인 필수 (GitHub Settings → Environments)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > ~/.kube/config
+
+      # ── Rollback 처리 ──
+      - name: Rollback (if requested)
+        if: ${{ github.event.inputs.rollback == 'true' }}
+        run: |
+          echo "Rolling back to previous version..."
+          kubectl rollout undo deployment/triton-server -n production
+          kubectl rollout status deployment/triton-server -n production --timeout=300s
+          echo "Rollback complete"
+
+      # ── 신규 배포 ──
+      - name: Deploy new version
+        if: ${{ github.event.inputs.rollback != 'true' }}
+        run: |
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          echo "Deploying image tag: ${IMAGE_TAG}"
+
+          cd deploy/k8s/overlays/prod
+          kustomize edit set image nvcr.io/nvidia/tritonserver=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+
+          kustomize build . | kubectl apply -f -
+          kubectl rollout status deployment/triton-server -n production --timeout=600s
+
+      # ── Post-deploy 검증 ──
+      - name: Smoke test
+        run: |
+          pip install pytest requests
+          TRITON_URL=$(kubectl get svc triton-server -n production -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          pytest tests/smoke/ --triton-url "http://${TRITON_URL}:8000" -v
+
+      - name: Performance baseline check
+        run: |
+          TRITON_URL=$(kubectl get svc triton-server -n production -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "Production Triton at: ${TRITON_URL}"
+          echo "Manual perf check: ./tests/perf/run_perf_analyzer.sh --url ${TRITON_URL}:8000"
+
+      # ── 자동 롤백 (smoke test 실패 시) ──
+      - name: Auto-rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment verification failed — rolling back!"
+          kubectl rollout undo deployment/triton-server -n production
+          kubectl rollout status deployment/triton-server -n production --timeout=300s
+
+      - name: Notify
+        if: always()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && '✅' || '❌' }} Production deployment ${{ job.status }}\nTag: ${{ github.event.inputs.image_tag }}\nBy: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,31 @@
+# ============================================================
+# Dev 환경 오버라이드
+# 사용: helm install triton deploy/helm/triton -f deploy/helm/triton/values.dev.yaml
+# ============================================================
+
+replicaCount: 1
+
+tritonArgs:
+  - --model-repository=/models
+  - --strict-model-config=true
+  - --allow-metrics=true
+  - --allow-gpu-metrics=true
+  - --model-control-mode=poll          # 파일 변경 감지 (개발 편의)
+  - --repository-poll-secs=5
+  - --log-verbose=2                    # 상세 로그
+
+resources:
+  requests:
+    cpu: "1"
+    memory: "4Gi"
+    nvidia.com/gpu: "1"
+  limits:
+    cpu: "2"
+    memory: "8Gi"
+    nvidia.com/gpu: "1"
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: false

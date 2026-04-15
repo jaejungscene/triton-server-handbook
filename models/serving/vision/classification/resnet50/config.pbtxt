@@ -1,0 +1,44 @@
+# Vision — ResNet50 Classification
+
+name: "resnet50"
+backend: "onnxruntime"
+max_batch_size: 16
+
+input [
+  { name: "input" data_type: TYPE_FP32 dims: [3, 224, 224] }
+]
+
+output [
+  { name: "output" data_type: TYPE_FP32 dims: [1000] }
+]
+
+dynamic_batching {
+  preferred_batch_size: [8, 16]
+  max_queue_delay_microseconds: 100
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [0]
+    rate_limiter {
+      resources [{ name: "gpu_slot" count: 1 }]
+      priority: 1
+    }
+  }
+]
+
+model_warmup [
+  {
+    name: "warmup"
+    batch_size: 1
+    inputs {
+      key: "input"
+      value: { data_type: TYPE_FP32 dims: [3, 224, 224] zero_data: true }
+    }
+  }
+]
+
+version_policy: { latest: { num_versions: 2 } }
+response_cache { enable: true }

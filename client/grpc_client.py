@@ -1,0 +1,98 @@
+"""
+gRPC Client — 고성능 바이너리 프로토콜
+
+HTTP 대비 낮은 latency, 높은 throughput. 서비스 간 통신에 권장.
+
+사용 예:
+    from client.grpc_client import TritonGRPCClient, TritonConfig
+
+    config = TritonConfig(grpc_url="localhost:8001")
+    client = TritonGRPCClient(config)
+
+    result = client.infer_numpy(
+        model_name="resnet50",
+        input_data={"input": numpy_array},
+        output_names=["output"],
+    )
+"""
+
+import numpy as np
+
+from .base import BaseTritonClient, TritonConfig
+
+
+class TritonGRPCClient(BaseTritonClient):
+    """gRPC 기반 Triton 클라이언트"""
+
+    def __init__(self, config: TritonConfig | None = None):
+        super().__init__(config or TritonConfig())
+        import tritonclient.grpc as grpcclient
+
+        ssl_options = None
+        if self.config.ssl:
+            root_cert = None
+            if self.config.ssl_root_cert:
+                with open(self.config.ssl_root_cert, "rb") as f:
+                    root_cert = f.read()
+            ssl_options = grpcclient.SslOptions(root_certificates=root_cert)
+
+        self._client = grpcclient.InferenceServerClient(
+            url=self.config.grpc_url,
+            verbose=self.config.verbose,
+            ssl=self.config.ssl,
+            ssl_options=ssl_options,
+        )
+        self._grpcclient = grpcclient
+
+    def is_server_ready(self) -> bool:
+        return self._client.is_server_ready()
+
+    def is_model_ready(self, model_name: str, model_version: str = "") -> bool:
+        return self._client.is_model_ready(model_name, model_version)
+
+    def get_model_metadata(self, model_name: str, model_version: str = ""):
+        return self._client.get_model_metadata(model_name, model_version)
+
+    def infer(self, model_name: str, inputs: list, outputs: list, **kwargs):
+        return self._client.infer(
+            model_name=model_name,
+            inputs=inputs,
+            outputs=outputs,
+            request_id=kwargs.get("request_id", ""),
+            model_version=kwargs.get("model_version", ""),
+        )
+
+    def infer_numpy(
+        self,
+        model_name: str,
+        input_data: dict[str, np.ndarray],
+        output_names: list[str],
+        model_version: str = "",
+    ) -> dict[str, np.ndarray]:
+        """NumPy 배열로 간편 추론"""
+        inputs = []
+        for name, data in input_data.items():
+            inp = self._grpcclient.InferInput(name, list(data.shape), self._numpy_to_triton_dtype(data.dtype))
+            inp.set_data_from_numpy(data)
+            inputs.append(inp)
+
+        outputs = [self._grpcclient.InferRequestedOutput(name) for name in output_names]
+
+        result = self.infer(model_name, inputs, outputs, model_version=model_version)
+
+        return {name: result.as_numpy(name) for name in output_names}
+
+    @staticmethod
+    def _numpy_to_triton_dtype(dtype: np.dtype) -> str:
+        mapping = {
+            np.float32: "FP32",
+            np.float16: "FP16",
+            np.float64: "FP64",
+            np.int32: "INT32",
+            np.int64: "INT64",
+            np.int16: "INT16",
+            np.int8: "INT8",
+            np.uint8: "UINT8",
+            np.bool_: "BOOL",
+        }
+        return mapping.get(dtype.type, "FP32")

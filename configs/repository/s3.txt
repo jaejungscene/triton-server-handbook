@@ -1,0 +1,12 @@
+# =============================================================================
+# S3 Model Repository — AWS S3 모델 저장소 설정
+# =============================================================================
+# model_repository를 S3 버킷으로 직접 사용
+# 사전조건: AWS 자격증명 설정 (환경변수 또는 IAM Role)
+#
+# 환경변수:
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION
+#   또는 EKS에서 IRSA (IAM Roles for Service Accounts) 사용
+# =============================================================================
+
+--model-repository=s3://${S3_BUCKET:-your-bucket}/model_repository

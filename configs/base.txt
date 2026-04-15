@@ -1,0 +1,23 @@
+# =============================================================================
+# Base Config — 모든 환경 공통 Triton 서버 인자
+# =============================================================================
+
+# 로깅
+--log-verbose=1
+--log-info=true
+--log-warning=true
+--log-error=true
+
+# 모델 설정
+--strict-model-config=true
+
+# Metrics (Prometheus)
+--allow-metrics=true
+--allow-gpu-metrics=true
+--metrics-port=8002
+
+# Health endpoint
+--allow-http=true
+--http-port=8000
+--allow-grpc=true
+--grpc-port=8001

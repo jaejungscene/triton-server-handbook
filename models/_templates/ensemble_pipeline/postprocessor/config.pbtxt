@@ -1,0 +1,37 @@
+# =============================================================================
+# Ensemble Pipeline — Postprocessor config.pbtxt
+# =============================================================================
+# Python backend로 후처리 (NMS, argmax, label 매핑 등)
+# =============================================================================
+
+name: "postprocessor"
+backend: "python"
+max_batch_size: 8
+
+input [
+  {
+    name: "RAW_OUTPUT"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+]
+
+output [
+  {
+    name: "FINAL_OUTPUT"
+    data_type: TYPE_FP32
+    dims: [-1]                  # 최종 결과 shape
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [4, 8]
+  max_queue_delay_microseconds: 100
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_CPU
+  }
+]

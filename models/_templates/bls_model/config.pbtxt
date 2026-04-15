@@ -1,0 +1,52 @@
+# =============================================================================
+# BLS (Business Logic Scripting) Template — config.pbtxt
+# =============================================================================
+# Python backend 내에서 다른 모델을 직접 호출하고 분기 로직을 구현
+#
+# Ensemble 대비 BLS의 장점:
+#   - 조건 분기, 루프, 에러 핸들링 등 복잡한 비즈니스 로직 구현 가능
+#   - 중간 결과를 기반으로 다른 모델 동적 호출 가능
+# =============================================================================
+
+name: "bls_model"
+backend: "python"
+max_batch_size: 8
+
+input [
+  {
+    name: "INPUT"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+]
+
+output [
+  {
+    name: "OUTPUT"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [4, 8]
+  max_queue_delay_microseconds: 100
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_CPU
+  }
+]
+
+model_warmup [
+  {
+    name: "warmup_request"
+    batch_size: 1
+    inputs {
+      key: "INPUT"
+      value: { data_type: TYPE_FP32 dims: [16] zero_data: true }
+    }
+  }
+]

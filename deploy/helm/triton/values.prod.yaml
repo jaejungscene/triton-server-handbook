@@ -1,0 +1,39 @@
+# ============================================================
+# Production 환경 오버라이드
+# 사용: helm upgrade --install triton deploy/helm/triton \
+#         -f deploy/helm/triton/values.prod.yaml \
+#         --set image.tag=sha-abc1234
+# ============================================================
+
+replicaCount: 3
+
+tritonArgs:
+  - --model-repository=/models
+  - --strict-model-config=true
+  - --allow-metrics=true
+  - --allow-gpu-metrics=true
+  - --model-control-mode=explicit      # 의도치 않은 리로드 방지
+  - --log-verbose=0                    # 최소 로그 (성능)
+  - --http-thread-count=8
+  - --grpc-infer-thread-count=8
+  - --response-cache-byte-size=67108864  # 64MB 응답 캐시
+
+resources:
+  requests:
+    cpu: "4"
+    memory: "16Gi"
+    nvidia.com/gpu: "1"
+  limits:
+    cpu: "8"
+    memory: "32Gi"
+    nvidia.com/gpu: "1"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 2                      # 최소 2개 파드 유지

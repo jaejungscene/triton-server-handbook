@@ -1,0 +1,82 @@
+# ============================================================
+# Triton Inference Server — Helm Chart 기본값
+# 환경별 오버라이드: values.dev.yaml / values.staging.yaml / values.prod.yaml
+# ============================================================
+
+image:
+  repository: nvcr.io/nvidia/tritonserver
+  tag: "24.08-py3"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# ----- Triton 서버 인수 -----
+tritonArgs:
+  - --model-repository=/models
+  - --strict-model-config=true
+  - --allow-metrics=true
+  - --allow-gpu-metrics=true
+  - --log-verbose=0
+
+# ----- 서비스 -----
+service:
+  type: ClusterIP
+  httpPort: 8000
+  grpcPort: 8001
+  metricsPort: 8002
+
+# ----- 리소스 -----
+resources:
+  requests:
+    cpu: "2"
+    memory: "8Gi"
+    nvidia.com/gpu: "1"
+  limits:
+    cpu: "4"
+    memory: "16Gi"
+    nvidia.com/gpu: "1"
+
+# ----- 영속성 (모델 저장소 PVC) -----
+persistence:
+  enabled: true
+  size: 50Gi
+  accessMode: ReadWriteMany
+  # storageClassName: ""   # 클러스터 환경에 맞게 설정
+
+# ----- HPA (수평 파드 자동 확장) -----
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# ----- PodDisruptionBudget -----
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# ----- 노드 선택 (GPU 노드 고정) -----
+nodeSelector:
+  accelerator: nvidia-gpu
+
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+# ----- 프로브 -----
+livenessProbe:
+  httpGet:
+    path: /v2/health/live
+    port: 8000
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /v2/health/ready
+    port: 8000
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  failureThreshold: 3

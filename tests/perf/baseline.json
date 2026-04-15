@@ -1,0 +1,26 @@
+{
+  "resnet50": {
+    "min_throughput": 100,
+    "max_p95_latency_ms": 50,
+    "concurrency": 8,
+    "notes": "ONNX Runtime on A100, batch_size=16"
+  },
+  "yolox": {
+    "min_throughput": 60,
+    "max_p95_latency_ms": 100,
+    "concurrency": 4,
+    "notes": "TensorRT FP16 on A100, batch_size=8"
+  },
+  "od_pipeline": {
+    "min_throughput": 40,
+    "max_p95_latency_ms": 150,
+    "concurrency": 4,
+    "notes": "Ensemble (preprocess + yolox + postprocess)"
+  },
+  "anomaly_detector": {
+    "min_throughput": 1000,
+    "max_p95_latency_ms": 5,
+    "concurrency": 8,
+    "notes": "FIL backend, XGBoost, batch_size=4096"
+  }
+}

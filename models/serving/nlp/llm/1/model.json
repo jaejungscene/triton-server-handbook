@@ -1,0 +1,8 @@
+{
+    "model": "meta-llama/Llama-3-8B-Instruct",
+    "tensor_parallel_size": 1,
+    "dtype": "float16",
+    "max_model_len": 4096,
+    "gpu_memory_utilization": 0.85,
+    "enforce_eager": false
+}

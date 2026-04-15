@@ -1,0 +1,61 @@
+# =============================================================================
+# Decoupled Streaming Template — config.pbtxt
+# =============================================================================
+# LLM 토큰 스트리밍 등 요청 1건에 대해 여러 응답을 반환하는 패턴
+#
+# 핵심 설정:
+#   model_transaction_policy { decoupled: true }
+#
+# 제약:
+#   - HTTP endpoint 사용 불가 → gRPC bi-directional streaming 필수
+#   - Response Cache 미지원
+#   - 클라이언트는 client/streaming_client.py 사용
+# =============================================================================
+
+name: "decoupled_streaming"
+backend: "python"
+max_batch_size: 1              # LLM 스트리밍은 보통 배치 1
+
+input [
+  {
+    name: "INPUT_TEXT"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "MAX_TOKENS"
+    data_type: TYPE_INT32
+    dims: [1]
+  }
+]
+
+output [
+  {
+    name: "OUTPUT_TOKEN"
+    data_type: TYPE_STRING
+    dims: [1]
+  }
+]
+
+# ★ 핵심: decoupled 모드 활성화
+model_transaction_policy {
+  decoupled: true
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [0]
+    rate_limiter {
+      resources [{ name: "gpu_slot" count: 1 }]
+      priority: 1
+    }
+  }
+]
+
+# Note: decoupled 모델은 sequence_batching 사용 가능
+# sequence_batching {
+#   max_sequence_idle_microseconds: 60000000
+#   control_input [...]
+# }

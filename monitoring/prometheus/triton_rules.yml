@@ -1,0 +1,64 @@
+# Triton Inference Server — Prometheus Alert Rules
+
+groups:
+  - name: triton_alerts
+    rules:
+      # 높은 추론 지연 — p99 latency > 200ms
+      - alert: TritonHighLatency
+        expr: histogram_quantile(0.99, sum(rate(nv_inference_request_duration_us_bucket[5m])) by (le, model)) > 200000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High inference latency on {{ $labels.model }}"
+          description: "p99 latency is {{ $value }}us (threshold: 200ms)"
+
+      # 추론 요청 에러율 > 5%
+      - alert: TritonHighErrorRate
+        expr: rate(nv_inference_request_failure[5m]) / rate(nv_inference_request_success[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate on {{ $labels.model }}"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      # 큐 대기 시간이 길어짐
+      - alert: TritonQueueBacklog
+        expr: nv_inference_queue_duration_us > 100000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue backlog on {{ $labels.model }}"
+          description: "Queue wait time is {{ $value }}us"
+
+      # GPU 사용률 높음 (> 90%)
+      - alert: TritonGPUHighUtilization
+        expr: nv_gpu_utilization > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU utilization"
+          description: "GPU {{ $labels.gpu_uuid }} utilization is {{ $value | humanizePercentage }}"
+
+      # GPU 메모리 사용률 높음 (> 90%)
+      - alert: TritonGPUMemoryHigh
+        expr: nv_gpu_memory_used_bytes / nv_gpu_memory_total_bytes > 0.9
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High GPU memory usage"
+          description: "GPU memory usage is {{ $value | humanizePercentage }}"
+
+      # Triton 서버 다운
+      - alert: TritonServerDown
+        expr: up{job="triton-inference-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Triton server is down"
+          description: "Triton inference server is unreachable"

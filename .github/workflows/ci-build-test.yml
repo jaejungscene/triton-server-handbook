@@ -1,0 +1,122 @@
+# =============================================================================
+# CI Build & Test — 모델 빌드 + Smoke Test + Image Push
+# =============================================================================
+# Trigger: main branch에 merge 시
+# Runner: self-hosted GPU runner (GPU 필요)
+# =============================================================================
+
+name: CI - Build & Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'models/**'
+      - 'configs/**'
+      - 'scripts/**'
+      - 'deploy/docker/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-test:
+    name: Build & Smoke Test
+    runs-on: [self-hosted, gpu]  # GPU self-hosted runner
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      # ── Step 1: Build model_repository ──
+      - name: Build model repository
+        run: |
+          ./scripts/build.sh --env dev --clean
+          echo "Model repository contents:"
+          ls -la model_repository/
+
+      # ── Step 2: Docker image build ──
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: false
+          load: true
+          tags: triton-server:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Step 3: Start Triton + Smoke Test ──
+      - name: Start Triton server
+        run: |
+          docker run -d \
+            --name triton-test \
+            --gpus all \
+            -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+            -v $(pwd)/model_repository:/models:ro \
+            triton-server:test \
+            tritonserver \
+              --model-repository=/models \
+              --model-control-mode=poll \
+              --strict-model-config=true \
+              --log-verbose=1
+
+      - name: Wait for server ready
+        uses: ./.github/actions/triton-health-check
+        with:
+          url: http://localhost:8000
+          timeout: 120
+
+      - name: Run smoke tests
+        run: |
+          pip install pytest requests tritonclient[all]
+          pytest tests/smoke/ --triton-url http://localhost:8000 -v
+
+      - name: Cleanup test container
+        if: always()
+        run: |
+          docker stop triton-test 2>/dev/null || true
+          docker rm triton-test 2>/dev/null || true
+
+      # ── Step 4: Push image to GHCR ──
+      - name: Generate image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

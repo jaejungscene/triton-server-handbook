@@ -1,0 +1,16 @@
+# =============================================================================
+# Redis Response Cache — 외부 Redis 서버 캐시
+# =============================================================================
+# 장점 (vs local):
+#   - 서버 재시작 시에도 캐시 유지
+#   - 여러 Triton 인스턴스가 캐시 공유
+#   - Triton 메모리와 캐시 메모리 분리
+#
+# 사전조건: Redis 서버 접속 가능해야 함
+# Redis 배포: deploy/docker/docker-compose.prod.yml 참조
+# =============================================================================
+
+--cache-config=redis,host=${REDIS_HOST:-redis}
+--cache-config=redis,port=${REDIS_PORT:-6379}
+# --cache-config=redis,password=${REDIS_PASSWORD}
+# --cache-config=redis,db=0

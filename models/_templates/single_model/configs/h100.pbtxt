@@ -1,0 +1,59 @@
+# =============================================================================
+# Custom Model Configuration Template (--model-config-name=h100)
+# =============================================================================
+# Triton 시작 시 --model-config-name=h100 으로 지정하면
+# 이 파일이 config.pbtxt 대신 사용됩니다.
+#
+# 사용 시나리오:
+#   - GPU 종류별 최적 설정 분리 (H100 vs A100 vs T4)
+#   - instance_group count, precision, batch_size 등 GPU 특성에 맞게 조정
+# =============================================================================
+
+backend: "onnxruntime"
+max_batch_size: 16             # H100은 메모리 여유 → 배치 크기 증가
+
+input [
+  {
+    name: "input"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+]
+
+output [
+  {
+    name: "output"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [8, 16]
+  max_queue_delay_microseconds: 50
+}
+
+instance_group [
+  {
+    count: 2                   # H100: 메모리 충분하므로 인스턴스 2개
+    kind: KIND_GPU
+    gpus: [0]
+    rate_limiter {
+      resources [{ name: "gpu_slot" count: 1 }]
+      priority: 1
+    }
+  }
+]
+
+model_warmup [
+  {
+    name: "warmup_request"
+    batch_size: 1
+    inputs {
+      key: "input"
+      value: { data_type: TYPE_FP32 dims: [16] zero_data: true }
+    }
+  }
+]
+
+version_policy: { latest: { num_versions: 2 } }

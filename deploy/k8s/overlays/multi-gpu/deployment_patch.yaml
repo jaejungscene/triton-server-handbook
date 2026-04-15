@@ -1,0 +1,23 @@
+# Multi-GPU — 단일 노드에서 GPU 4장 사용
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-server
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: triton
+          resources:
+            requests:
+              cpu: "8"
+              memory: "32Gi"
+              nvidia.com/gpu: "4"
+            limits:
+              cpu: "16"
+              memory: "64Gi"
+              nvidia.com/gpu: "4"
+          env:
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0,1,2,3"

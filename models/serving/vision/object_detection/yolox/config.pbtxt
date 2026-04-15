@@ -1,0 +1,57 @@
+# Object Detection — YOLOX Inference Model
+# TensorRT 또는 ONNX 런타임 — 모델 바이너리는 CI가 배치
+
+name: "yolox"
+platform: "tensorrt_plan"      # .plan 사용 시 | "onnxruntime" for .onnx
+max_batch_size: 8
+
+input [
+  {
+    name: "PREPROCESSED_IMAGE"
+    data_type: TYPE_FP32
+    dims: [3, 640, 640]
+  }
+]
+
+output [
+  {
+    name: "DETECTIONS"
+    data_type: TYPE_FP32
+    dims: [-1, 7]              # [x1, y1, x2, y2, obj_conf, class_conf, class_id]
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [4, 8]
+  max_queue_delay_microseconds: 100
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [0]
+    rate_limiter {
+      resources [{ name: "gpu_slot" count: 1 }]
+      priority: 1
+    }
+  }
+]
+
+model_warmup [
+  {
+    name: "warmup"
+    batch_size: 1
+    inputs {
+      key: "PREPROCESSED_IMAGE"
+      value: { data_type: TYPE_FP32 dims: [3, 640, 640] zero_data: true }
+    }
+  }
+]
+
+version_policy: { latest: { num_versions: 2 } }
+
+# response_cache { enable: true }
+
+# GPU별 최적 설정은 configs/ 디렉토리에 별도 관리
+# configs/h100.pbtxt → --model-config-name=h100

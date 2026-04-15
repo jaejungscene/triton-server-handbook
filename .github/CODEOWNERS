@@ -1,0 +1,14 @@
+# models/ 변경 — ML 팀 리뷰 필수
+/models/ @your-org/ml-team
+
+# configs/ 변경 — 인프라/MLOps 팀 리뷰
+/configs/ @your-org/mlops-team
+
+# deploy/ 변경 — 인프라 팀 리뷰
+/deploy/ @your-org/infra-team
+
+# CI/CD 변경 — DevOps 팀 리뷰
+/.github/ @your-org/devops-team
+
+# 모니터링 변경
+/monitoring/ @your-org/mlops-team

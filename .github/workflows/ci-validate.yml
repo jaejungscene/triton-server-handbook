@@ -1,0 +1,96 @@
+# =============================================================================
+# CI Validate — PR 시 config 검증 + lint + manifest 정합성
+# =============================================================================
+# Trigger: PR → main, develop
+# Runner: ubuntu-latest (GPU 불필요)
+# =============================================================================
+
+name: CI - Validate
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'models/**'
+      - 'configs/**'
+      - 'scripts/**'
+      - 'client/**'
+      - 'tests/**'
+
+jobs:
+  validate-configs:
+    name: Validate Configs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml pytest ruff
+
+      - name: Validate config.pbtxt files
+        run: ./scripts/validate.sh
+
+      - name: Validate manifest.yaml
+        run: pytest tests/config/ -v
+
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint model.py files
+        run: |
+          ruff check models/ client/ tests/ --select E,W,F --ignore E501
+
+  lint-docker:
+    name: Lint Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: deploy/docker/Dockerfile
+          failure-threshold: warning
+
+      - name: Run hadolint (converter)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: deploy/docker/Dockerfile.converter
+          failure-threshold: warning
+
+  lint-k8s:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Validate overlays
+        run: |
+          for overlay in deploy/k8s/overlays/*/; do
+            echo "Validating: ${overlay}"
+            kustomize build "${overlay}" > /dev/null
+          done

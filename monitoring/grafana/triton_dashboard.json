@@ -1,0 +1,103 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Triton Inference Server Monitoring Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Throughput (infer/sec)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "rate(nv_inference_request_success[5m])",
+          "legendFormat": "{{ model }}"
+        }
+      ]
+    },
+    {
+      "title": "Latency p50 / p95 / p99 (ms)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(nv_inference_request_duration_us_bucket[5m])) by (le, model)) / 1000",
+          "legendFormat": "p50 {{ model }}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nv_inference_request_duration_us_bucket[5m])) by (le, model)) / 1000",
+          "legendFormat": "p95 {{ model }}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(nv_inference_request_duration_us_bucket[5m])) by (le, model)) / 1000",
+          "legendFormat": "p99 {{ model }}"
+        }
+      ]
+    },
+    {
+      "title": "Queue Depth",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "nv_inference_pending_request_count",
+          "legendFormat": "{{ model }}"
+        }
+      ]
+    },
+    {
+      "title": "GPU Utilization (%)",
+      "type": "gauge",
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "nv_gpu_utilization * 100",
+          "legendFormat": "GPU {{ gpu_uuid }}"
+        }
+      ]
+    },
+    {
+      "title": "GPU Memory Usage (%)",
+      "type": "gauge",
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
+      "targets": [
+        {
+          "expr": "nv_gpu_memory_used_bytes / nv_gpu_memory_total_bytes * 100",
+          "legendFormat": "GPU {{ gpu_uuid }}"
+        }
+      ]
+    },
+    {
+      "title": "Cache Hit Rate",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "rate(nv_cache_num_hits_per_model[5m]) / (rate(nv_cache_num_hits_per_model[5m]) + rate(nv_cache_num_misses_per_model[5m]))",
+          "legendFormat": "{{ model }}"
+        }
+      ]
+    },
+    {
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+      "targets": [
+        {
+          "expr": "rate(nv_inference_request_failure[5m])",
+          "legendFormat": "{{ model }}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["triton", "inference", "gpu"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "Triton Inference Server",
+  "uid": "triton-dashboard"
+}

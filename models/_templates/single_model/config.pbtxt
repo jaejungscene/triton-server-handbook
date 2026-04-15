@@ -1,0 +1,111 @@
+# =============================================================================
+# Single Model Template — config.pbtxt
+# =============================================================================
+# 사용법: 이 디렉토리를 복사하여 models/serving/{domain}/{model_name}/ 에 배치
+#   cp -r models/_templates/single_model/ models/serving/vision/resnet50/
+#
+# 필수 수정 항목:
+#   - name, backend (또는 platform)
+#   - input/output shape, data_type
+#   - max_batch_size
+#   - instance_group (GPU/CPU, count)
+# =============================================================================
+
+# name: "your_model_name"     # 생략 시 디렉토리명 사용
+backend: "onnxruntime"         # onnxruntime | tensorrt | pytorch | python | openvino | fil
+max_batch_size: 8
+
+# ---------------------------------------------------------------------------
+# Input / Output 정의
+# ---------------------------------------------------------------------------
+input [
+  {
+    name: "input"
+    data_type: TYPE_FP32
+    dims: [-1]                 # 가변 차원은 -1 로 지정
+  }
+]
+
+output [
+  {
+    name: "output"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+]
+
+# ---------------------------------------------------------------------------
+# Dynamic Batching — 여러 요청을 묶어 throughput 극대화
+# ---------------------------------------------------------------------------
+dynamic_batching {
+  preferred_batch_size: [4, 8]
+  max_queue_delay_microseconds: 100
+}
+
+# ---------------------------------------------------------------------------
+# Instance Group — 모델 인스턴스 수 및 디바이스 설정
+# ---------------------------------------------------------------------------
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU             # KIND_GPU | KIND_CPU
+    gpus: [0]
+
+    # Rate Limiter — GPU 리소스 경합 방지 (--rate-limit 활성화 시 적용)
+    rate_limiter {
+      resources [
+        {
+          name: "gpu_slot"
+          count: 1
+        }
+      ]
+      priority: 1              # 낮을수록 높은 우선순위
+    }
+  }
+]
+
+# ---------------------------------------------------------------------------
+# Model Warmup — 서버 시작 시 워밍업하여 첫 요청 지연 제거
+# ---------------------------------------------------------------------------
+model_warmup [
+  {
+    name: "warmup_request"
+    batch_size: 1
+    inputs {
+      key: "input"
+      value: {
+        data_type: TYPE_FP32
+        dims: [16]             # 실제 모델에 맞는 shape으로 수정
+        zero_data: true        # 0으로 채운 더미 데이터
+      }
+    }
+  }
+]
+
+# ---------------------------------------------------------------------------
+# Version Policy — 모델 버전 관리 전략
+# ---------------------------------------------------------------------------
+# version_policy: { all { }}                        # 모든 버전 활성화
+version_policy: { latest: { num_versions: 2 } }     # 최신 2개 버전 유지
+# version_policy: { specific: { versions: [1, 3] }} # 특정 버전만 활성화
+
+# ---------------------------------------------------------------------------
+# Response Cache — 동일 입력에 대한 결과 캐싱
+# ---------------------------------------------------------------------------
+# 서버 시작 시 --cache-config 도 함께 설정해야 동작
+# response_cache { enable: true }
+
+# ---------------------------------------------------------------------------
+# Optimization Policy (선택) — TensorRT / OpenVINO 최적화
+# ---------------------------------------------------------------------------
+# optimization {
+#   execution_accelerators {
+#     gpu_execution_accelerator: [
+#       {
+#         name: "tensorrt"
+#         parameters { key: "precision_mode" value: "FP16" }
+#         parameters { key: "max_workspace_size_bytes" value: "1073741824" }
+#       }
+#     ]
+#   }
+# }

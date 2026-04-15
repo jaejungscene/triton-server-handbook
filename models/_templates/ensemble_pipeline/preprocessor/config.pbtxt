@@ -1,0 +1,37 @@
+# =============================================================================
+# Ensemble Pipeline — Preprocessor config.pbtxt
+# =============================================================================
+# Python backend로 전처리 수행 (리사이즈, 정규화 등)
+# =============================================================================
+
+name: "preprocessor"
+backend: "python"
+max_batch_size: 8
+
+input [
+  {
+    name: "RAW_INPUT"
+    data_type: TYPE_UINT8
+    dims: [-1, -1, 3]         # [H, W, C] 가변 크기 이미지
+  }
+]
+
+output [
+  {
+    name: "PREPROCESSED"
+    data_type: TYPE_FP32
+    dims: [3, 224, 224]        # 모델 입력 shape으로 변환
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [4, 8]
+  max_queue_delay_microseconds: 100
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_CPU             # 전처리는 CPU 실행
+  }
+]

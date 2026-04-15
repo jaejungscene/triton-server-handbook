@@ -1,0 +1,8 @@
+# =============================================================================
+# Azure Blob Model Repository — Azure Blob Storage 모델 저장소
+# =============================================================================
+# 사전조건: AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_KEY 환경변수
+# 또는 AKS에서 Managed Identity 사용
+# =============================================================================
+
+--model-repository=as://${AZURE_CONTAINER:-your-container}/model_repository

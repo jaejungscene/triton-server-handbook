@@ -1,0 +1,72 @@
+# =============================================================================
+# Serving Models Manifest — Source of Truth for build.sh
+# =============================================================================
+# models/serving/ 하위의 소스 경로를 model_repository/ 의 타겟 이름으로 매핑
+#
+# 사용법:
+#   ./scripts/build.sh --env dev                    # 전체 빌드
+#   ./scripts/build.sh --env dev --tags gpu          # GPU 모델만 빌드
+#   ./scripts/build.sh --env dev --tags ensemble     # Ensemble만 빌드
+#
+# 규칙:
+#   - source: models/serving/ 기준 상대 경로
+#   - target: model_repository/ 에 생성될 디렉토리명 (Triton이 인식하는 모델명)
+#   - tags: 선택적 빌드 필터링용
+#   - enabled: false로 설정하면 빌드에서 제외
+# =============================================================================
+
+models:
+  # ---------------------------------------------------------------------------
+  # Vision — Object Detection (Ensemble Pipeline)
+  # ---------------------------------------------------------------------------
+  - source: vision/object_detection/preprocessor
+    target: od_preprocessor
+    tags: [cpu, python, vision]
+    enabled: true
+
+  - source: vision/object_detection/yolox
+    target: yolox
+    tags: [gpu, tensorrt, vision]
+    enabled: true
+
+  - source: vision/object_detection/postprocessor
+    target: od_postprocessor
+    tags: [cpu, python, vision]
+    enabled: true
+
+  - source: vision/object_detection/pipeline
+    target: od_pipeline
+    tags: [ensemble, vision]
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Vision — Classification
+  # ---------------------------------------------------------------------------
+  - source: vision/classification/resnet50
+    target: resnet50
+    tags: [gpu, onnx, vision]
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # NLP — Text Classifier
+  # ---------------------------------------------------------------------------
+  - source: nlp/text_classifier
+    target: text_classifier
+    tags: [gpu, python, nlp]
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # NLP — LLM (Decoupled Streaming)
+  # ---------------------------------------------------------------------------
+  - source: nlp/llm
+    target: llm_vllm
+    tags: [gpu, vllm, decoupled, nlp]
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Tabular — Anomaly Detector (FIL Backend)
+  # ---------------------------------------------------------------------------
+  - source: tabular/anomaly_detector
+    target: anomaly_detector
+    tags: [gpu, fil, tabular]
+    enabled: true

@@ -1,0 +1,88 @@
+# =============================================================================
+# CD Staging — Staging 자동 배포 + Integration Test
+# =============================================================================
+# Trigger: CI Build & Test 성공 후 자동
+# =============================================================================
+
+name: CD - Staging
+
+on:
+  workflow_run:
+    workflows: ["CI - Build & Test"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > ~/.kube/config
+
+      - name: Update image tag
+        run: |
+          cd deploy/k8s/overlays/staging
+          kustomize edit set image nvcr.io/nvidia/tritonserver=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to staging
+        run: |
+          kustomize build deploy/k8s/overlays/staging | kubectl apply -f -
+          kubectl rollout status deployment/triton-server -n staging --timeout=300s
+
+      - name: Wait for server ready
+        run: |
+          TRITON_URL=$(kubectl get svc triton-server -n staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}'):8000
+          for i in $(seq 1 30); do
+            if curl -sf "http://${TRITON_URL}/v2/health/ready" > /dev/null 2>&1; then
+              echo "Server is ready"
+              break
+            fi
+            echo "Waiting... (${i}/30)"
+            sleep 10
+          done
+
+      - name: Run integration tests
+        run: |
+          pip install pytest requests tritonclient[all]
+          TRITON_URL=$(kubectl get svc triton-server -n staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          pytest tests/integration/ --triton-url "http://${TRITON_URL}:8000" -v
+
+      - name: Notify Slack (success)
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "✅ Staging deployment successful\nCommit: ${{ github.sha }}\nBranch: ${{ github.ref_name }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack (failure)
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "❌ Staging deployment FAILED\nCommit: ${{ github.sha }}\nBranch: ${{ github.ref_name }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}

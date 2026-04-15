@@ -1,0 +1,17 @@
+# =============================================================================
+# NUMA Optimization — CPU/GPU 바인딩
+# =============================================================================
+# 시스템의 NUMA 구성에 맞게 policy 이름과 값을 조정
+#
+# 확인: numactl --hardware
+# GPU-NUMA 매핑: nvidia-smi topo -m
+#
+# 예: GPU 0이 NUMA node 0에 연결, CPU cores 0-15
+# =============================================================================
+
+--host-policy=gpu_0,numa-node=0
+--host-policy=gpu_0,cpu-cores=0-15
+
+# 2번째 GPU가 있을 경우
+# --host-policy=gpu_1,numa-node=1
+# --host-policy=gpu_1,cpu-cores=16-31

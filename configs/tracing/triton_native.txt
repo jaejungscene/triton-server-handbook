@@ -1,0 +1,13 @@
+# =============================================================================
+# Triton Native Tracing — JSON 파일 출력 (디버깅/분석용)
+# =============================================================================
+# 디버깅 시 사용, 운영에서는 OpenTelemetry 권장
+# trace 파일을 trace_summary.py 로 분석 가능
+# =============================================================================
+
+--trace-config=mode=triton
+--trace-config=triton,file=/tmp/triton_trace.json
+--trace-config=triton,log-frequency=50
+--trace-config=level=TIMESTAMPS
+--trace-config=rate=100
+--trace-config=count=1000

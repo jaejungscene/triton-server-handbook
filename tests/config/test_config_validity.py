@@ -1,0 +1,128 @@
+"""
+test_config_validity.py — config.pbtxt 및 manifest.yaml 자동 검증
+
+CI에서 자동 실행되어 잘못된 설정이 배포되는 것을 방지합니다.
+"""
+
+import os
+from pathlib import Path
+
+import pytest
+
+try:
+    import yaml
+
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+
+
+@pytest.fixture
+def models_dir(project_root):
+    return os.path.join(project_root, "models")
+
+
+@pytest.fixture
+def serving_dir(project_root):
+    return os.path.join(project_root, "models", "serving")
+
+
+class TestConfigFiles:
+    """config.pbtxt 파일 유효성 검사"""
+
+    def _find_configs(self, base_dir):
+        configs = []
+        for root, _, files in os.walk(base_dir):
+            for f in files:
+                if f == "config.pbtxt":
+                    configs.append(os.path.join(root, f))
+        return configs
+
+    def test_all_configs_exist(self, models_dir):
+        """models/ 하위에 config.pbtxt 파일이 하나 이상 존재"""
+        configs = self._find_configs(models_dir)
+        assert len(configs) > 0, "No config.pbtxt files found"
+
+    @pytest.mark.parametrize("required_field", ["backend", "platform"])
+    def test_configs_have_backend_or_platform(self, models_dir, required_field):
+        """모든 config.pbtxt에 backend 또는 platform이 정의됨"""
+        configs = self._find_configs(models_dir)
+        for config_path in configs:
+            with open(config_path) as f:
+                content = f.read()
+            # ensemble은 platform: "ensemble" 사용
+            has_backend = "backend:" in content or 'platform:' in content
+            assert has_backend, f"Missing backend/platform in {config_path}"
+
+    def test_configs_balanced_brackets(self, models_dir):
+        """모든 config.pbtxt의 괄호가 균형"""
+        configs = self._find_configs(models_dir)
+        for config_path in configs:
+            with open(config_path) as f:
+                content = f.read()
+
+            # 주석 제거 (# 로 시작하는 줄)
+            lines = [line for line in content.splitlines() if not line.strip().startswith("#")]
+            clean = "\n".join(lines)
+
+            assert clean.count("[") == clean.count("]"), f"Unbalanced [] in {config_path}"
+            assert clean.count("{") == clean.count("}"), f"Unbalanced {{}} in {config_path}"
+
+    def test_version_directories_exist(self, models_dir):
+        """config.pbtxt가 있는 디렉토리에 버전 디렉토리(1/)가 존재"""
+        configs = self._find_configs(models_dir)
+        for config_path in configs:
+            model_dir = os.path.dirname(config_path)
+            # ensemble/pipeline은 1/.gitkeep만 필요
+            with open(config_path) as f:
+                content = f.read()
+            if 'platform: "ensemble"' in content:
+                continue  # ensemble은 버전 디렉토리 체크 스킵 가능
+
+            version_dirs = [
+                d for d in os.listdir(model_dir)
+                if os.path.isdir(os.path.join(model_dir, d)) and d.isdigit()
+            ]
+            # configs/ 디렉토리는 버전이 아님
+            assert len(version_dirs) > 0 or "configs" in os.listdir(model_dir), \
+                f"No version directory in {model_dir}"
+
+
+@pytest.mark.skipif(not HAS_YAML, reason="PyYAML not installed")
+class TestManifest:
+    """manifest.yaml 정합성 검사"""
+
+    def test_manifest_exists(self, serving_dir):
+        manifest_path = os.path.join(serving_dir, "manifest.yaml")
+        assert os.path.exists(manifest_path), "manifest.yaml not found"
+
+    def test_manifest_sources_exist(self, serving_dir):
+        """manifest의 모든 source 경로가 실제로 존재"""
+        manifest_path = os.path.join(serving_dir, "manifest.yaml")
+        with open(manifest_path) as f:
+            manifest = yaml.safe_load(f)
+
+        for model in manifest.get("models", []):
+            source_path = os.path.join(serving_dir, model["source"])
+            assert os.path.exists(source_path), \
+                f"Source path not found: {model['source']} (expected: {source_path})"
+
+    def test_manifest_targets_unique(self, serving_dir):
+        """manifest의 target 이름이 모두 고유"""
+        manifest_path = os.path.join(serving_dir, "manifest.yaml")
+        with open(manifest_path) as f:
+            manifest = yaml.safe_load(f)
+
+        targets = [m["target"] for m in manifest.get("models", [])]
+        assert len(targets) == len(set(targets)), \
+            f"Duplicate targets found: {[t for t in targets if targets.count(t) > 1]}"
+
+    def test_manifest_has_required_fields(self, serving_dir):
+        """manifest의 모든 모델 항목에 source, target 필드가 존재"""
+        manifest_path = os.path.join(serving_dir, "manifest.yaml")
+        with open(manifest_path) as f:
+            manifest = yaml.safe_load(f)
+
+        for i, model in enumerate(manifest.get("models", [])):
+            assert "source" in model, f"Model {i} missing 'source' field"
+            assert "target" in model, f"Model {i} missing 'target' field"

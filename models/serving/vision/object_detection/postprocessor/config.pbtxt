@@ -1,0 +1,43 @@
+# Object Detection — Postprocessor (NMS + Scale Recovery)
+
+name: "od_postprocessor"
+backend: "python"
+max_batch_size: 8
+
+input [
+  {
+    name: "DETECTIONS"
+    data_type: TYPE_FP32
+    dims: [-1, 7]
+  },
+  {
+    name: "SCALE_FACTOR"
+    data_type: TYPE_FP32
+    dims: [2]
+  }
+]
+
+output [
+  {
+    name: "BBOXES"
+    data_type: TYPE_FP32
+    dims: [-1, 4]
+  },
+  {
+    name: "SCORES"
+    data_type: TYPE_FP32
+    dims: [-1]
+  },
+  {
+    name: "CLASS_IDS"
+    data_type: TYPE_INT32
+    dims: [-1]
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [4, 8]
+  max_queue_delay_microseconds: 100
+}
+
+instance_group [{ count: 1, kind: KIND_CPU }]

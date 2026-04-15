@@ -1,0 +1,88 @@
+# =============================================================================
+# Docker Compose — Production 환경 (Cache + Monitoring)
+# =============================================================================
+# 사용법:
+#   docker compose -f deploy/docker/docker-compose.prod.yml up -d
+# =============================================================================
+
+services:
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.08-py3
+    container_name: triton-server
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    volumes:
+      - ../../model_repository:/models:ro
+    command: >
+      tritonserver
+        --model-repository=/models
+        --model-control-mode=explicit
+        --strict-model-config=true
+        --log-verbose=0
+        --allow-metrics=true
+        --allow-gpu-metrics=true
+        --cache-config=local,size=67108864
+        --rate-limit=execution_count
+        --http-thread-count=8
+        --grpc-infer-thread-count=8
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: triton-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: triton-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../../monitoring/prometheus/scrape_config.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../monitoring/prometheus/triton_rules.yml:/etc/prometheus/triton_rules.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: triton-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../monitoring/grafana/triton_dashboard.json:/var/lib/grafana/dashboards/triton.json:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:

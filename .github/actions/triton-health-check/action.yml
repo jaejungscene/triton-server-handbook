@@ -1,0 +1,48 @@
+# =============================================================================
+# Composite Action — Triton Health Check
+# =============================================================================
+# 재사용 가능한 Health Check action
+# Triton 서버가 ready 상태가 될 때까지 대기
+# =============================================================================
+
+name: Triton Health Check
+description: Wait for Triton server to be ready
+
+inputs:
+  url:
+    description: Triton HTTP URL
+    required: true
+    default: http://localhost:8000
+  timeout:
+    description: Maximum wait time in seconds
+    required: false
+    default: "120"
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for Triton ready
+      shell: bash
+      run: |
+        URL="${{ inputs.url }}"
+        TIMEOUT="${{ inputs.timeout }}"
+        ELAPSED=0
+        INTERVAL=5
+
+        echo "Waiting for Triton server at ${URL} (timeout: ${TIMEOUT}s)"
+
+        while [[ ${ELAPSED} -lt ${TIMEOUT} ]]; do
+          if curl -sf "${URL}/v2/health/ready" > /dev/null 2>&1; then
+            echo "Triton server is ready! (${ELAPSED}s)"
+            exit 0
+          fi
+
+          echo "  Not ready yet... (${ELAPSED}/${TIMEOUT}s)"
+          sleep ${INTERVAL}
+          ELAPSED=$((ELAPSED + INTERVAL))
+        done
+
+        echo "ERROR: Triton server did not become ready within ${TIMEOUT}s"
+        # Show server logs for debugging
+        docker logs triton-test 2>&1 | tail -50 || true
+        exit 1

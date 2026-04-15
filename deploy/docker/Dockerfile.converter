@@ -1,0 +1,24 @@
+# =============================================================================
+# Dockerfile.converter — 모델 변환 전용 이미지 (CI에서 사용)
+# =============================================================================
+# trtexec, torch, onnx 등 변환 도구를 포함
+# CI 파이프라인에서 ONNX → TensorRT 변환 등에 사용
+# =============================================================================
+
+ARG TRITON_VERSION=24.08
+FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-py3
+
+RUN pip install --no-cache-dir \
+    torch \
+    onnx \
+    onnxruntime \
+    xgboost \
+    lightgbm \
+    scikit-learn \
+    pyyaml
+
+COPY scripts/convert/ /opt/convert/
+RUN chmod +x /opt/convert/*.sh 2>/dev/null || true
+
+WORKDIR /workspace
+ENTRYPOINT ["/bin/bash"]

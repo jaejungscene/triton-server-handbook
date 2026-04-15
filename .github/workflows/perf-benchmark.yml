@@ -1,0 +1,97 @@
+# =============================================================================
+# Performance Benchmark — 성능 기준선 비교
+# =============================================================================
+# Trigger: 주간 스케줄 + 수동
+# Runner: self-hosted GPU runner
+# =============================================================================
+
+name: Performance Benchmark
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # 매주 월요일 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Specific model to benchmark (empty = all)'
+        required: false
+        default: ''
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmark
+    runs-on: [self-hosted, gpu]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml tritonclient[all]
+
+      - name: Build model repository
+        run: ./scripts/build.sh --env dev --clean
+
+      - name: Start Triton server
+        run: |
+          docker run -d \
+            --name triton-perf \
+            --gpus all \
+            -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+            -v $(pwd)/model_repository:/models:ro \
+            nvcr.io/nvidia/tritonserver:24.08-py3 \
+            tritonserver \
+              --model-repository=/models \
+              --model-control-mode=poll \
+              --strict-model-config=true \
+              --log-verbose=0
+
+      - name: Wait for server ready
+        uses: ./.github/actions/triton-health-check
+        with:
+          url: http://localhost:8000
+          timeout: 180
+
+      - name: Run perf_analyzer
+        run: |
+          MODEL_ARG=""
+          if [[ -n "${{ github.event.inputs.model }}" ]]; then
+            MODEL_ARG="--model ${{ github.event.inputs.model }}"
+          fi
+          ./tests/perf/run_perf_analyzer.sh ${MODEL_ARG}
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results-${{ github.sha }}
+          path: tests/perf/results/
+          retention-days: 90
+
+      - name: Check for regression
+        run: |
+          if [[ -f tests/perf/baseline.json ]]; then
+            echo "Comparing against baseline..."
+            # Regression check is handled by run_perf_analyzer.sh
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop triton-perf 2>/dev/null || true
+          docker rm triton-perf 2>/dev/null || true
+
+      - name: Comment on regression
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ Performance regression detected! Check the benchmark results.'
+            })

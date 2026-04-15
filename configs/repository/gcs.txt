@@ -1,0 +1,8 @@
+# =============================================================================
+# GCS Model Repository — Google Cloud Storage 모델 저장소
+# =============================================================================
+# 사전조건: GOOGLE_APPLICATION_CREDENTIALS 환경변수로 서비스 계정 키 설정
+# 또는 GKE에서 Workload Identity 사용
+# =============================================================================
+
+--model-repository=gs://${GCS_BUCKET:-your-bucket}/model_repository

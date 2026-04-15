@@ -1,0 +1,71 @@
+"""
+test_vision_pipeline.py — Object Detection Ensemble Pipeline 통합 테스트
+
+전처리 → YOLOX → 후처리 전체 파이프라인이 정상 동작하는지 검증합니다.
+"""
+
+import numpy as np
+import pytest
+
+
+class TestVisionPipeline:
+    """Object Detection Ensemble Pipeline 통합 테스트"""
+
+    @pytest.fixture
+    def sample_image(self):
+        """테스트용 더미 이미지 (640x640x3)"""
+        return np.random.randint(0, 255, (1, 640, 640, 3), dtype=np.uint8)
+
+    def test_pipeline_inference(self, triton_url, sample_image):
+        """Ensemble Pipeline 추론 E2E 테스트"""
+        try:
+            import tritonclient.http as httpclient
+        except ImportError:
+            pytest.skip("tritonclient not installed")
+
+        client = httpclient.InferenceServerClient(url=triton_url.replace("http://", ""))
+
+        if not client.is_model_ready("od_pipeline"):
+            pytest.skip("od_pipeline model not loaded")
+
+        input_tensor = httpclient.InferInput("RAW_IMAGE", list(sample_image.shape), "UINT8")
+        input_tensor.set_data_from_numpy(sample_image)
+
+        outputs = [
+            httpclient.InferRequestedOutput("BBOXES"),
+            httpclient.InferRequestedOutput("SCORES"),
+            httpclient.InferRequestedOutput("CLASS_IDS"),
+        ]
+
+        result = client.infer("od_pipeline", [input_tensor], outputs)
+
+        bboxes = result.as_numpy("BBOXES")
+        scores = result.as_numpy("SCORES")
+        class_ids = result.as_numpy("CLASS_IDS")
+
+        assert bboxes.ndim == 2
+        assert scores.ndim == 1
+        assert class_ids.ndim == 1
+        assert len(scores) == len(class_ids)
+
+    def test_preprocessor_standalone(self, triton_url, sample_image):
+        """전처리 모델 단독 테스트"""
+        try:
+            import tritonclient.http as httpclient
+        except ImportError:
+            pytest.skip("tritonclient not installed")
+
+        client = httpclient.InferenceServerClient(url=triton_url.replace("http://", ""))
+
+        if not client.is_model_ready("od_preprocessor"):
+            pytest.skip("od_preprocessor model not loaded")
+
+        input_tensor = httpclient.InferInput("RAW_IMAGE", list(sample_image.shape), "UINT8")
+        input_tensor.set_data_from_numpy(sample_image)
+
+        outputs = [httpclient.InferRequestedOutput("PREPROCESSED_IMAGE")]
+
+        result = client.infer("od_preprocessor", [input_tensor], outputs)
+        preprocessed = result.as_numpy("PREPROCESSED_IMAGE")
+
+        assert preprocessed.dtype == np.float32

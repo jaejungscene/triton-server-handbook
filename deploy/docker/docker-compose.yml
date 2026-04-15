@@ -1,0 +1,41 @@
+# =============================================================================
+# Docker Compose — 로컬/개발 환경
+# =============================================================================
+# 사용법:
+#   docker compose -f deploy/docker/docker-compose.yml up -d
+#   docker compose -f deploy/docker/docker-compose.yml logs -f triton
+# =============================================================================
+
+services:
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.08-py3
+    container_name: triton-server
+    ports:
+      - "8000:8000"    # HTTP
+      - "8001:8001"    # gRPC
+      - "8002:8002"    # Metrics
+    volumes:
+      - ../../model_repository:/models:ro
+    command: >
+      tritonserver
+        --model-repository=/models
+        --model-control-mode=poll
+        --repository-poll-secs=5
+        --log-verbose=2
+        --strict-model-config=true
+        --allow-metrics=true
+        --allow-gpu-metrics=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
