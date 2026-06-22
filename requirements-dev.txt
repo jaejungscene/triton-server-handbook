@@ -1,0 +1,5 @@
+# Local validation and CI helper dependencies.
+pytest>=8,<9
+PyYAML>=6,<7
+requests>=2.31,<3
+ruff>=0.8,<1

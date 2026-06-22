@@ -21,7 +21,13 @@ checked=0
 # Find all config.pbtxt files
 while IFS= read -r config_file; do
     checked=$((checked + 1))
-    relative=$(realpath --relative-to="${PROJECT_ROOT}" "${config_file}")
+    relative=$(python3 - "${PROJECT_ROOT}" "${config_file}" <<'PY'
+import os
+import sys
+
+print(os.path.relpath(sys.argv[2], sys.argv[1]))
+PY
+)
 
     # Basic syntax checks
     # 1. Check for required fields (name or backend/platform)
