@@ -3,19 +3,19 @@
 groups:
   - name: triton_alerts
     rules:
-      # 높은 추론 지연 — p99 latency > 200ms
+      # 높은 평균 추론 지연 — 5분 평균 latency > 200ms
       - alert: TritonHighLatency
-        expr: histogram_quantile(0.99, sum(rate(nv_inference_request_duration_us_bucket[5m])) by (le, model)) > 200000
+        expr: sum by (model) (rate(nv_inference_request_duration_us[5m])) / clamp_min(sum by (model) (rate(nv_inference_request_success[5m])), 1) > 200000
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "High inference latency on {{ $labels.model }}"
-          description: "p99 latency is {{ $value }}us (threshold: 200ms)"
+          description: "5m average latency is {{ $value }}us (threshold: 200ms)"
 
       # 추론 요청 에러율 > 5%
       - alert: TritonHighErrorRate
-        expr: rate(nv_inference_request_failure[5m]) / rate(nv_inference_request_success[5m]) > 0.05
+        expr: sum by (model) (rate(nv_inference_request_failure[5m])) / clamp_min(sum by (model) (rate(nv_inference_request_success[5m]) + rate(nv_inference_request_failure[5m])), 1) > 0.05
         for: 5m
         labels:
           severity: critical
@@ -25,7 +25,7 @@ groups:
 
       # 큐 대기 시간이 길어짐
       - alert: TritonQueueBacklog
-        expr: nv_inference_queue_duration_us > 100000
+        expr: sum by (model) (rate(nv_inference_queue_duration_us[5m])) / clamp_min(sum by (model) (rate(nv_inference_request_success[5m])), 1) > 100000
         for: 10m
         labels:
           severity: warning

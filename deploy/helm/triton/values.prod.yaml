@@ -16,7 +16,8 @@ tritonArgs:
   - --log-verbose=0                    # 최소 로그 (성능)
   - --http-thread-count=8
   - --grpc-infer-thread-count=8
-  - --response-cache-byte-size=67108864  # 64MB 응답 캐시
+  - --cache-config=local,size=67108864 # 64MB 로컬 응답 캐시
+  - --rate-limit=execution_count       # instance_group rate_limiter 활성화
 
 resources:
   requests:
