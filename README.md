@@ -1,6 +1,6 @@
 # Triton Inference Server — Production-Ready Serving Platform
 
-실무에서 바로 활용하고, 확장·유지보수할 수 있는 Triton 추론 서버 가이드라인 구조입니다.
+실무에서 바로 활용하고, 확장·유지보수할 수 있는 Triton 추론 서버 가이드라인 입니다.
 
 ---
 
