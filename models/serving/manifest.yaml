@@ -13,6 +13,7 @@
 #   - target: model_repository/ 에 생성될 디렉토리명 (Triton이 인식하는 모델명)
 #   - tags: 선택적 빌드 필터링용
 #   - enabled: false로 설정하면 빌드에서 제외
+#   - artifact: external 은 Git에 없는 모델 바이너리를 CI/artifact 저장소에서 배치해야 함
 # =============================================================================
 
 models:
@@ -22,22 +23,27 @@ models:
   - source: vision/object_detection/preprocessor
     target: od_preprocessor
     tags: [cpu, python, vision]
-    enabled: true
+    enabled: false
+    note: "object detection pipeline을 활성화할 때 함께 enable"
 
   - source: vision/object_detection/yolox
     target: yolox
     tags: [gpu, tensorrt, vision]
-    enabled: true
+    enabled: false
+    artifact: external
+    required_files: ["1/model.plan"]
 
   - source: vision/object_detection/postprocessor
     target: od_postprocessor
     tags: [cpu, python, vision]
-    enabled: true
+    enabled: false
+    note: "object detection pipeline을 활성화할 때 함께 enable"
 
   - source: vision/object_detection/pipeline
     target: od_pipeline
     tags: [ensemble, vision]
-    enabled: true
+    enabled: false
+    note: "od_preprocessor, yolox, od_postprocessor가 모두 준비된 뒤 enable"
 
   # ---------------------------------------------------------------------------
   # Vision — Classification
@@ -45,14 +51,16 @@ models:
   - source: vision/classification/resnet50
     target: resnet50
     tags: [gpu, onnx, vision]
-    enabled: true
+    enabled: false
+    artifact: external
+    required_files: ["1/model.onnx"]
 
   # ---------------------------------------------------------------------------
   # NLP — Text Classifier
   # ---------------------------------------------------------------------------
   - source: nlp/text_classifier
     target: text_classifier
-    tags: [gpu, python, nlp]
+    tags: [cpu, python, nlp, smoke]
     enabled: true
 
   # ---------------------------------------------------------------------------
@@ -61,7 +69,9 @@ models:
   - source: nlp/llm
     target: llm_vllm
     tags: [gpu, vllm, decoupled, nlp]
-    enabled: true
+    enabled: false
+    artifact: external
+    note: "vLLM backend 이미지와 실제 Hugging Face/model artifact 준비 후 enable"
 
   # ---------------------------------------------------------------------------
   # Tabular — Anomaly Detector (FIL Backend)
@@ -69,4 +79,6 @@ models:
   - source: tabular/anomaly_detector
     target: anomaly_detector
     tags: [gpu, fil, tabular]
-    enabled: true
+    enabled: false
+    artifact: external
+    required_files: ["1/model.xgboost"]

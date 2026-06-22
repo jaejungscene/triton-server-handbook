@@ -18,7 +18,7 @@ dynamic_batching {
   max_queue_delay_microseconds: 200
 }
 
-instance_group [{ count: 1, kind: KIND_GPU, gpus: [0] }]
+instance_group [{ count: 1, kind: KIND_CPU }]
 
 model_warmup [
   {
