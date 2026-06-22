@@ -9,6 +9,16 @@
 
 ## Quick Start
 
+사전 조건:
+
+- Docker Compose
+- NVIDIA GPU + NVIDIA Container Toolkit (Triton 컨테이너 실행 시)
+- Python 3.11+ (검증 스크립트와 테스트 실행 시)
+
+기본 manifest는 바로 로드 가능한 `text_classifier`만 활성화합니다. ONNX/TensorRT/FIL/LLM
+예제는 실제 모델 artifact와 backend 이미지를 준비한 뒤 `models/serving/manifest.yaml`에서
+`enabled: true`로 전환합니다.
+
 ```bash
 # 1. 환경설정
 cp .env.example .env.dev
@@ -21,6 +31,16 @@ docker compose -f deploy/docker/docker-compose.yml up -d
 
 # 4. Health Check
 ./scripts/health_check.sh
+```
+
+로컬 검증만 수행할 때는 Docker 없이 아래 명령으로 시작할 수 있습니다.
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-dev.txt
+./scripts/validate.sh
+pytest tests/config/
 ```
 
 ---
