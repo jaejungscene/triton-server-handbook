@@ -13,7 +13,7 @@ FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-py3
 
 # Python backend 의존성 설치
 COPY requirements-model.txt /tmp/requirements-model.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-model.txt 2>/dev/null || true
+RUN pip install --no-cache-dir -r /tmp/requirements-model.txt
 
 # 스크립트 복사 (health check 등)
 COPY scripts/health_check.sh /opt/scripts/health_check.sh

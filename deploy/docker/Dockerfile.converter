@@ -8,14 +8,8 @@
 ARG TRITON_VERSION=24.08
 FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-py3
 
-RUN pip install --no-cache-dir \
-    torch \
-    onnx \
-    onnxruntime \
-    xgboost \
-    lightgbm \
-    scikit-learn \
-    pyyaml
+COPY requirements-converter.txt /tmp/requirements-converter.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-converter.txt
 
 COPY scripts/convert/ /opt/convert/
 RUN chmod +x /opt/convert/*.sh 2>/dev/null || true

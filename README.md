@@ -2,9 +2,22 @@
 
 실무에서 바로 활용하고, 확장·유지보수할 수 있는 Triton 추론 서버 가이드라인 입니다.
 
+> 현재 저장소는 운영 템플릿과 학습용 핸드북을 함께 제공합니다. 실제 production 적용 전에는
+> 모델 바이너리, artifact 저장소, GPU runner, 도메인별 SLO를 각 팀 환경에 맞게 채워야 합니다.
+
 ---
 
 ## Quick Start
+
+사전 조건:
+
+- Docker Compose
+- NVIDIA GPU + NVIDIA Container Toolkit (Triton 컨테이너 실행 시)
+- Python 3.11+ (검증 스크립트와 테스트 실행 시)
+
+기본 manifest는 바로 로드 가능한 `text_classifier`만 활성화합니다. ONNX/TensorRT/FIL/LLM
+예제는 실제 모델 artifact와 backend 이미지를 준비한 뒤 `models/serving/manifest.yaml`에서
+`enabled: true`로 전환합니다.
 
 ```bash
 # 1. 환경설정
@@ -20,6 +33,16 @@ docker compose -f deploy/docker/docker-compose.yml up -d
 ./scripts/health_check.sh
 ```
 
+로컬 검증만 수행할 때는 Docker 없이 아래 명령으로 시작할 수 있습니다.
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-dev.txt
+./scripts/validate.sh
+pytest tests/config/
+```
+
 ---
 
 ## 프로젝트 구조
@@ -30,7 +53,7 @@ triton-inference-server/
 ├── models/                              # 모델 소스 코드 (Git 관리 대상)
 │   ├── _templates/                      # 새 모델 추가 시 복사하여 시작
 │   │   ├── single_model/                # 단일 모델 (ONNX / TensorRT / PyTorch)
-│   │   │   ├── 1/model.onnx
+│   │   │   ├── 1/model.onnx            # 예시 파일명, 실제 바이너리는 artifact로 배치
 │   │   │   └── config.pbtxt
 │   │   ├── ensemble_pipeline/           # 전처리 → 추론 → 후처리 DAG
 │   │   │   ├── preprocessor/
@@ -47,7 +70,7 @@ triton-inference-server/
 │       ├── vision/
 │       │   ├── classification/
 │       │   │   └── resnet50/            # ONNX 단일 모델
-│       │   │       ├── 1/model.onnx
+│       │   │       ├── 1/model.onnx    # 실제 운영에서는 artifact 저장소/CI가 배치
 │       │   │       └── config.pbtxt
 │       │   └── object_detection/        # YOLOX 앙상블 파이프라인
 │       │       ├── preprocessor/        # Python 백엔드 (이미지 리사이즈)
@@ -76,7 +99,7 @@ triton-inference-server/
 │   │   └── triton_native.txt            # Triton 네이티브 트레이싱
 │   ├── cache/
 │   │   ├── local_cache.txt              # 인메모리 응답 캐시 (단일 노드)
-│   │   └── redis_cache.txt              # Redis 기반 응답 캐시 (멀티 노드)
+│   │   └── redis_cache.txt              # Redis 캐시 플러그인 사용 시 참고 설정
 │   ├── gpu/
 │   │   ├── mps.md                       # CUDA Multi-Process Service 설정 가이드
 │   │   └── numa.txt                     # NUMA 최적화 인수
@@ -114,7 +137,7 @@ triton-inference-server/
 │   │   ├── Dockerfile                   # 프로덕션 런타임 이미지
 │   │   ├── Dockerfile.converter          # 모델 변환용 이미지 (CI 전용)
 │   │   ├── docker-compose.yml           # 개발 환경 (GPU 1개, poll 모드)
-│   │   └── docker-compose.prod.yml      # 프로덕션 (Triton + Redis + Prometheus + Grafana)
+│   │   └── docker-compose.prod.yml      # 프로덕션 (Triton + Prometheus + Grafana, Redis profile 선택)
 │   │
 │   ├── helm/                            # Helm Chart (업계 표준 K8s 패키징)
 │   │   └── triton/
@@ -189,6 +212,26 @@ triton-inference-server/
 
 ---
 
+## 운영 핸드북
+
+처음 보는 사람은 아래 순서로 읽으면 됩니다.
+
+| 문서 | 내용 |
+|------|------|
+| [Architecture](docs/architecture.md) | 요청 처리 경로, 모델 레포지토리 전략, serving 패턴, 관측성 |
+| [Production Adoption](docs/production-adoption.md) | production 도입 단계, release checklist, rollback 기준 |
+| [Practical Scenarios](docs/scenarios.md) | 단일 모델, ensemble, GPU OOM, cache, LLM streaming, release 시나리오 |
+
+핵심 운영 원칙은 단순합니다.
+
+1. dev는 빠른 실험을 위해 `poll`을 허용합니다.
+2. staging/prod는 `explicit` 모드로 load/unload를 통제합니다.
+3. production은 image tag와 model repository revision을 고정합니다.
+4. 모든 모델 변경은 config 검증, smoke test, metrics 확인을 거칩니다.
+5. 성능 튜닝은 `config.pbtxt` 변경 전후의 latency, throughput, GPU memory를 숫자로 비교합니다.
+
+---
+
 ## Triton 기능 ↔ 파일 매핑
 
 ### ⚡ 성능 최적화
@@ -198,7 +241,7 @@ triton-inference-server/
 | **Dynamic Batching** | `config.pbtxt` → `dynamic_batching { preferred_batch_size: [4, 8] max_queue_delay_microseconds: 100 }` | 여러 요청을 자동으로 묶어 배치 처리, throughput 극대화 |
 | **Concurrent Execution** | `config.pbtxt` → `instance_group { count: 2 kind: KIND_GPU }` | 동일 모델을 GPU 인스턴스 여러 개로 병렬 실행 |
 | **Model Warmup** | `config.pbtxt` → `model_warmup { name: "warmup" batch_size: 1 ... }` | 서버 시작 시 미리 워밍업하여 첫 요청 지연 제거 |
-| **Response Cache** | `configs/cache/` + `config.pbtxt` → `response_cache { enable: true }` | 동일 입력에 대한 결과 캐싱 (Local / Redis) |
+| **Response Cache** | `configs/cache/` + `config.pbtxt` → `response_cache { enable: true }` | 동일 입력에 대한 결과 캐싱 (local cache 기본, Redis는 플러그인 검증 후) |
 | **Rate Limiter** | `configs/prod.txt` + `config.pbtxt` → `instance_group { rate_limiter { ... } }` | 리소스 기반 요청 제한 및 우선순위 조절 |
 
 ### 🗂️ 모델 관리
@@ -231,7 +274,7 @@ triton-inference-server/
 | 기능 | 설정 위치 | 설명 |
 |------|-----------|------|
 | **Prometheus Metrics** | `monitoring/prometheus/scrape_config.yml` | throughput, latency, 큐 대기, GPU 사용률 수집 |
-| **Alert Rules** | `monitoring/prometheus/triton_rules.yml` | latency p99 > 200ms, error rate > 5%, GPU > 90% 등 알림 |
+| **Alert Rules** | `monitoring/prometheus/triton_rules.yml` | 평균 latency > 200ms, error rate > 5%, GPU > 90% 등 알림 |
 | **Grafana Dashboard** | `monitoring/grafana/triton_dashboard.json` | 사전 구성된 시각화 대시보드 |
 | **OpenTelemetry Tracing** | `monitoring/otel/otel-collector-config.yaml` + `configs/tracing/otel.txt` | 요청 추적 (Jaeger / Zipkin 전달) |
 | **Health Check** | `scripts/health_check.sh` / `/v2/health/live`, `/v2/health/ready` | 서버·모델 상태 확인 |
@@ -439,7 +482,7 @@ StatusCode.UNAVAILABLE: failed to connect to all addresses
 ### 응답 캐시가 동작하지 않음
 
 **체크리스트**:
-1. 서버 인수에 `--response-cache-byte-size` 지정 확인 (`configs/prod.txt`)
+1. 서버 인수에 `--cache-config=local,size=...` 지정 확인 (`configs/prod.txt`)
 2. `config.pbtxt`에 `response_cache { enable: true }` 추가 확인
 3. 입력이 완전히 동일한지 확인 (바이트 단위 일치해야 캐시 히트)
 4. `python client/stats_client.py --model my_model` 으로 캐시 히트율 확인

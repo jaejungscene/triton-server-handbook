@@ -8,5 +8,7 @@ resources:
   - pvc.yaml
   - ingress.yaml
 
-commonLabels:
-  project: triton-inference-server
+labels:
+  - includeSelectors: true
+    pairs:
+      project: triton-inference-server

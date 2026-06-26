@@ -1,0 +1,6 @@
+# Runtime dependencies for Python backend examples.
+#
+# Triton's Python backend utility module is provided by the Triton container.
+# Keep this file focused on model code dependencies that must be installed into
+# the serving image.
+numpy>=1.24,<3

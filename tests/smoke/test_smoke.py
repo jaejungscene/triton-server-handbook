@@ -4,7 +4,6 @@ test_smoke.py — 배포 직후 빠른 정상 확인
 서버가 살아있는지, 모델이 로드되었는지, 기본 추론이 되는지 확인합니다.
 """
 
-import pytest
 import requests
 
 

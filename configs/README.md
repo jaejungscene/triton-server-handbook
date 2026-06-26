@@ -31,7 +31,7 @@ configs/
 | 설정 | dev | staging | prod |
 |------|-----|---------|------|
 | `model-control-mode` | poll (자동 감지) | explicit | explicit |
-| `response-cache` | off | on (local) | on (redis) |
+| `response-cache` | off | on (local) | on (local, redis는 별도 플러그인 검증 후) |
 | `rate-limit` | off | off | on |
 | `tls` | off | off | on |
 | `tracing` | triton native (파일) | otel (collector) | otel (collector) |

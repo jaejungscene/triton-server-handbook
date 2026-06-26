@@ -12,6 +12,11 @@
 ## 실행 방법
 
 ```bash
+# 최초 1회
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-dev.txt
+
 # 전체 실행
 pytest tests/
 
@@ -27,6 +32,9 @@ pytest tests/integration/ --triton-url http://localhost:8000
 # Performance test
 ./tests/perf/run_perf_analyzer.sh
 ```
+
+`tests/config/`는 Triton 서버가 없어도 실행됩니다. `tests/smoke/`와
+`tests/integration/`은 이미 기동 중인 Triton 서버가 필요합니다.
 
 ## 환경변수
 

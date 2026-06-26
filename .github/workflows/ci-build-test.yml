@@ -77,11 +77,10 @@ jobs:
             -p 8000:8000 -p 8001:8001 -p 8002:8002 \
             -v $(pwd)/model_repository:/models:ro \
             triton-server:test \
-            tritonserver \
-              --model-repository=/models \
-              --model-control-mode=poll \
-              --strict-model-config=true \
-              --log-verbose=1
+            --model-repository=/models \
+            --model-control-mode=poll \
+            --strict-model-config=true \
+            --log-verbose=1
 
       - name: Wait for server ready
         uses: ./.github/actions/triton-health-check
